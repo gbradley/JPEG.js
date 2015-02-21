@@ -1,0 +1,28 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<title>exif-reader.js</title>
+	<meta charset="utf8" />
+</head>
+<body>
+
+<input type="file" id="file" />
+<img id="img" />
+
+<script src='src/exif-reader.js'></script>
+<script>
+
+document.getElementById('file').onchange = function() {
+
+	var reader = new ExifReader();
+	reader.onload = function() {
+		console.log(this.thumbnail.width, this.thumbnail.height);
+		document.getElementById('img').src = this.thumbnail.src;
+	};
+	reader.readFromFile(this.files[0]);
+
+};
+
+</script>
+</body>
+</html>

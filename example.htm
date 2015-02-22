@@ -9,10 +9,10 @@
 <input type="file" id="file" />
 <img id="img" />
 
-<script src='src/exif-reader.js'></script>
+<script src='src/JPEGReader.js'></script>
 <script>
 
-document.getElementById('file').onchange = function() {
+/*document.getElementById('file').onchange = function() {
 
 	var reader = new ExifReader();
 	reader.onload = function() {
@@ -21,7 +21,33 @@ document.getElementById('file').onchange = function() {
 	};
 	reader.readFromFile(this.files[0]);
 
+};*/
+
+//'data:image/jpeg;base64,'
+
+document.getElementById('file').onchange = function() {
+
+		var reader = new JPEGReader({
+			workerUrl: 'src/JPEGReader.js'
+		});
+		reader.onload = function() {
+			console.log(reader.metadata.gps);
+			reader.loadPreview();
+		};
+
+		reader.onerror = function(e) {
+			console.log(e);
+		};
+
+		reader.onloadpreview = function(e) {
+			document.getElementById('img').src = reader.preview;
+		};
+
+		reader.load(this.files[0]);
+
+
 };
+
 
 </script>
 </body>

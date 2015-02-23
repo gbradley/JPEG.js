@@ -563,8 +563,8 @@ var JPEGReader = (function() {
 		this.target = target;
 	};
 
-	var JPEGReaderPreviewEvent = function(target) {
-		this.type = 'preview';
+	var JPEGReaderLoadPreviewEvent = function(target) {
+		this.type = 'loadpreview';
 		this.target = target;
 	};
 
@@ -618,7 +618,7 @@ var JPEGReader = (function() {
 			
 			self.preview = canvas.toDataURL('image/jpeg');
 			if (self.onloadpreview) {
-				self.onloadpreview(new JPEGReaderPreviewEvent(self));
+				self.onloadpreview(new JPEGReaderLoadPreviewEvent(self));
 			}
 		};
 		source.src = dataURL;

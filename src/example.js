@@ -2,7 +2,7 @@ require(['jpeg'], function(Jpeg) {
 
 	var $ = function(id) {
 		return document.getElementById(id);
-	}
+	};
 
 	$('file').onchange = function() {
 

@@ -1,4 +1,12 @@
-var JPEGReader = (function() {
+// Rather than jumping through hoops getting Require inside a worker, just mock it.
+if (typeof define === 'undefined') {
+	var define = function(dependencies, callback) {
+		callback();
+	};
+}
+
+define([], function() {
+	"use strict";
 
 	// ! Helper methods
 
@@ -18,6 +26,15 @@ var JPEGReader = (function() {
 
 	// ! Buffer
 
+	/**
+	* The Buffer class accepts a binary string and provides various manipulation methods.
+	**/
+
+	/**
+	 * Constructor
+	 *
+	 * @param {String} data
+	 */
 	var Buffer = build(function Buffer(data) {
 		this.data = data;
 		this.endian = null;
@@ -121,6 +138,13 @@ var JPEGReader = (function() {
 
 	// ! ExifReader
 
+	/**
+	* ExifReader class extracts EXIF, IPTC, GPS and thumbnail information from JPEG data.
+	**/
+
+	/**
+	 * Constructor
+	 */
 	var ExifReader = build(function ExifReader() {
 		this.error = null;
 		this.exif = {};
@@ -129,23 +153,113 @@ var JPEGReader = (function() {
 		this.thumbnail = null;
 	}, {
 
+		/**
+		 * Process a binary string
+		 *
+		 * @param {String} data
+		 * @return {Boolean}
+		 */
 		process : function(data) {
-			var metadata = {
+			var success = false,
+				metadata = {
 				exif : {},
 				iptc : {},
 				gps : {}
 			};
+
 			try {
 				parse(metadata, new Buffer(data));
 				this.metadata = metadata;
-				return true;
+				success = true;
 			} catch (e) {
 				this.error = e;
-				return false;
 			}
+			this.metadata = metadata;
+			return success;
 		}
 	});
 
+	/**
+	* Helper methods to convert Exif format to more useful ones.
+	**/
+	ExifReader.helpers = {
+
+		exif : {
+			/**
+			 * Attempt to convert a DateTimeOriginal string to a valid date (object with day, month, year properties)
+			 *
+			 * @param string dateTimeOriginal
+			 * @returns Object|null
+			 */
+			dateTimeOriginalToDateComponents : function(dateTimeOriginal) {
+				var date = null,
+					match = dateTimeOriginal.match(/^(\d{4})([:\/\- ])(\d{2})\2(\d{2})/);
+				if (match) {
+					
+					var day = parseInt(match[4]),
+						month = parseInt(match[3]),
+						year = parseInt(match[1]);
+
+					if (day && month && year && month <= 12 && day <= [,31,year % 4 ? 28 : 29,31,30,31,30,31,31,30,31,30,31][month]) {
+						date = {
+							day: day,
+							month: month,
+							year: year
+						};
+					}
+				}
+				return date;
+			}
+		},
+
+		gps : {
+			/**
+			 * Attempt to convert a coordinate string and reference to a WSG84 decimal coordinate
+			 *
+			 * @param string coords
+			 * @param string ref
+			 * @returns Number|null
+			 */
+			degreesToDecimal : function (coords, ref) {
+				var dec = 0,
+					m = [1, 60, 3600],
+					part;
+				coords = coords.split(',');
+				for (var i = 0; i < coords.length; i++) {
+					part = coords[i].split('/');
+					dec += (part[0] / part[1]) / m[i];
+				}
+
+				// Some EXIF returns the GPSLatitudeRef / GPSLongitudeRef flags with more than one
+				// character (tag parsing looks fine so unsure what's going on), so only inspect the first char.
+				ref = ref.split('')[0].toUpperCase();
+				if (ref === 'S' || ref === 'W') {
+					dec *= -1;
+				}
+				return (Number.isNaN || isNaN)(dec) ? null : dec;
+			}
+		},
+
+		iptc : {
+			/**
+			 * Convert an IPTC keywords value to tag array
+			 *
+			 * @param mixed keywors
+			 * @returns string
+			 */
+			keywordsToTags : function(keywords) {
+				return Object.prototype.toString.call(keywords) === '[object Array]' ? keywords : keywords.split(',');
+			}
+		}
+	};
+
+	/**
+	 * Parse the data inside a buffer and store tags inside a metadata object.
+	 *
+	 * @param {Object} metadata
+	 * @param {Buffer} buffer
+	 * @return void
+	 */
 	function parse(metadata, buffer) {
 
 		// check JPEG validity
@@ -190,8 +304,9 @@ var JPEGReader = (function() {
 	/**
 	 * Extract tags from an APP1 block.
 	 *
-	 * @param Object metadata
-	 * @param Buffer buffer
+	 * @param {Object} metadata
+	 * @param {Buffer} buffer
+	 * @return void
 	 */
 	function app1(metadata, buffer) {
 
@@ -248,6 +363,9 @@ var JPEGReader = (function() {
 	/**
 	 * Extract IPTC tgas from with an APP13 block.
 	 *
+	 * @param {Object} metadata
+	 * @param {Buffer} buffer
+	 * @return void
 	 */
 	function app13(metadata, buffer) {
 		
@@ -328,11 +446,11 @@ var JPEGReader = (function() {
 	/**
 	 * Extract data from an IFD block, and return the offset to the next block.
 	 *
-	 * @param Object metadata
-	 * @param Buffer buffer
-	 * @param Number offset
-	 * @param String tagtype (optional)
-	 * @return Integer
+	 * @param {Object} metadata
+	 * @param {Buffer} buffer
+	 * @param {Number} offset
+	 * @param {String} tagtype (optional)
+	 * @return {Number}
 	 */
 	function ifd(metadata, buffer, offset, tagType) {
 		
@@ -361,10 +479,10 @@ var JPEGReader = (function() {
 	/**
 	 * Extract the value for a tag.
 	 *
-	 * @param Object metadata
-	 * @param Buffer buffer
-	 * @param Number offset
-	 * @param String tagType
+	 * @param {Object} metadata
+	 * @param {Buffer} buffer
+	 * @param {Number} offset
+	 * @param {String} tagType
 	 */
 	function tag(metadata, buffer, offset, tagType) {
 		
@@ -521,9 +639,18 @@ var JPEGReader = (function() {
 		}
 	};
 
-	// ! JPEGReader
+	// ! JpegReader
 
-	var JPEGReader = function(config) {
+	/**
+	* The JpegReader class is a high-level class providing access to a JPEG's metadata.
+	**/
+
+	/**
+	 * Constructor
+	 *
+	 * @param {Object} config {workerUrl : {String|null}}
+	 */
+	var JpegReader = build(function(config) {
 
 		this.config = config || {};
 
@@ -536,16 +663,137 @@ var JPEGReader = (function() {
 		this.metadata = {};
 
 		this.error = null;
-		this.readyState = JPEGReader.EMPTY;
-	};
+		this.readyState = JpegReader.EMPTY;
+	}, {
+
+		/**
+		 * Return a data URL for the JPEG.
+		 *
+		 * @return {String|null}
+		 */
+		dataURL : function() {
+			return this.binary ? ('data:image/jpeg;base64,' + btoa(this.binary)) : null;
+		},
+
+		/**
+		 * Return a data URL for the JPEG's thumbnail.
+		 *
+		 * @return {String|null}
+		 */
+		thumbnailDataURL : function() {
+			return this.metadata.thumbnail ? ('data:image/jpeg;base64,' + btoa(this.metadata.thumbnail)) : null;
+		},
+
+		/**
+		 * Load a file.
+		 *
+		 * @param {File} file
+		 * @return void
+		 */
+		load : function(file) {
+			if (file.type.match(/^image\/p?jpe?g$/)) {
+				if (this.readyState === JpegReader.EMPTY) {
+					this.readyState = JpegReader.LOADING;
+
+					var self = this;
+
+					var onloadend = function(response) {
+						self.readyState = JpegReader.DONE;
+						self.error = response.error;
+						self.binary = response.result;
+						if (self.error) {
+							if (reader.onerror) {
+								reader.onerror(new JpegReaderErrorEvent(self));
+							}
+						} else {
+							var exifReader = new ExifReader;
+							exifReader.process(self.binary);
+							self.metadata = exifReader.metadata;
+
+							if (self.onload) {
+								self.onload(new JpegReaderLoadEvent(self));
+							}
+						}
+					};
+
+					if (window.Worker && this.config.workerUrl) {
+						var worker = new Worker(this.config.workerUrl);
+						worker.addEventListener('message', function(e) {
+							onloadend(e.data);
+						}, false);
+						worker.postMessage(file);
+					} else {
+						readFile(file, onloadend, false);
+					}
+				}
+			} else {
+				errorHandler(this, new Error('File is not a JPEG'));
+			}
+		},
+
+		/**
+		 * Load a square preview of the JPEG.
+		 *
+		 * @param {Number} edge
+		 * @return void
+		 */
+		loadPreview : function(edge) {
+			edge = edge || 100;
+
+			// By default, create the source from the embedded EXIF thumbnail.
+			var source = new Image,
+				self = this,
+				dataURL = this.thumbnailDataURL(),
+				orientation = 1;
+
+			// If there was no thumbnail embedded, use the full image as the source.
+			if (!dataURL) {
+				dataURL = this.dataURL();
+				orientation = this.metadata.exif.Orientation || 1;
+			}
+
+			source.onload = function() {
+
+				var canvas = document.createElement('canvas'),
+					degrees = [0, 0, 0, 180, 0, 0, 90, 0, -90][orientation],
+					x, y, w;
+
+				if (source.width > source.height) {
+					x = Math.floor((source.width - source.height) / 2);
+					y = 0;
+					w = source.height;
+				} else {
+					x = 0
+					y = Math.floor((source.height - source.width) / 2);
+					w = source.width;
+				}
+				
+				canvas.width = edge;
+				canvas.height = edge;
+				var context = canvas.getContext('2d');
+				if (degrees) {
+					// This is much easier since the preview is always square.
+					context.translate(edge / 2, edge / 2);
+					context.rotate(degrees * Math.PI / 180);
+					context.translate(-edge / 2, -edge / 2);
+				};
+				context.drawImage(source, x, y, w, w, 0, 0, edge, edge);
+				
+				self.preview = canvas.toDataURL('image/jpeg');
+				if (self.onloadpreview) {
+					self.onloadpreview(new JpegReaderLoadPreviewEvent(self));
+				}
+			};
+			source.src = dataURL;
+		}
+	});
 
 	// State constants
-	JPEGReader.EMPTY = 0;
-	JPEGReader.LOADING = 1;
-	JPEGReader.DONE = 2;
+	JpegReader.EMPTY = 0;
+	JpegReader.LOADING = 1;
+	JpegReader.DONE = 2;
 
 	// Shared handlers
-
 	var errorHandler = function(self, e) {
 		self.error = e;
 		if (self.onerror) {
@@ -553,124 +801,31 @@ var JPEGReader = (function() {
 		}
 	};
 
-	var JPEGReaderLoadEvent = function(target) {
+	var JpegReaderLoadEvent = function(target) {
 		this.type = 'load';
 		this.target = target;
 	};
 
-	var JPEGReaderErrorEvent = function(target) {
+	var JpegReaderErrorEvent = function(target) {
 		this.type = 'error';
 		this.target = target;
 	};
 
-	var JPEGReaderLoadPreviewEvent = function(target) {
+	var JpegReaderLoadPreviewEvent = function(target) {
 		this.type = 'loadpreview';
 		this.target = target;
 	};
 
-	JPEGReader.prototype.dataURL = function() {
-		return 'data:image/jpeg;base64,' + btoa(this.binary);
-	};
-
-	JPEGReader.prototype.thumbnailDataURL = function() {
-		return this.metadata.thumbnail ? ('data:image/jpeg;base64,' + btoa(this.metadata.thumbnail)) : null;
-	};
-
-	JPEGReader.prototype.loadPreview = function(width, height) {
-		width = width || 100;
-		height = height || 100;
-
-		var source = new Image,
-			self = this,
-			dataURL = this.thumbnailDataURL(),
-			orientation = 1;
-
-		if (!dataURL) {
-			dataURL = this.dataURL();
-			orientation = this.exif.Orientation || 1;
-		}
-
-		source.onload = function() {
-
-			var canvas = document.createElement('canvas'),
-				degrees = [0, 0, 0, 180, 0, 0, 90, 0, -90][orientation],
-				x, y, w;
-
-			if (source.width > source.height) {
-				x = Math.floor((source.width - source.height) / 2);
-				y = 0;
-				w = source.height;
-			} else {
-				x = 0
-				y = Math.floor((source.height - source.width) / 2);
-				w = source.width;
-			}
-			
-			canvas.width = width;
-			canvas.height = height;
-			context = canvas.getContext('2d');
-			if (degrees) {
-				context.translate(width / 2, height / 2);
-				context.rotate(degrees * Math.PI / 180);
-				context.translate(-width / 2, -height / 2);
-			};
-			context.drawImage(source, x, y, w, w, 0, 0, width, height);
-			
-			self.preview = canvas.toDataURL('image/jpeg');
-			if (self.onloadpreview) {
-				self.onloadpreview(new JPEGReaderLoadPreviewEvent(self));
-			}
-		};
-		source.src = dataURL;
-	};
-
-	JPEGReader.prototype.load = function(file) {
-		if (file.type.match(/^image\/p?jpe?g$/)) {
-			if (this.readyState === JPEGReader.EMPTY) {
-				this.readyState = JPEGReader.LOADING;
-
-				var self = this;
-
-				var onloadend = function(response) {
-					self.readyState = JPEGReader.DONE;
-					self.error = response.error;
-					self.binary = response.result;
-					if (self.error) {
-						if (reader.onerror) {
-							reader.onerror(new JPEGReaderErrorEvent(self));
-						}
-					} else {
-						var exifReader = new ExifReader;
-						if (exifReader.process(self.binary)) {
-							self.metadata = exifReader.metadata;
-						}
-
-						if (self.onload) {
-							self.onload(new JPEGReaderLoadEvent(self));
-						}
-					}
-				};
-
-				if (window.Worker && this.config.workerUrl) {
-					var worker = new Worker(this.config.workerUrl);
-					worker.addEventListener('message', function(e) {
-						onloadend(e.data);
-					}, false);
-					worker.postMessage(file);
-				} else {
-					return readFile(file, onloadend, false);
-				}
-			} else {
-				return false;
-			}
-		} else {
-			errorHandler(this, new Error('File is not a JPEG'));
-		}
-	};
-
-	// Perform file read using method based on worker environment.
-	function readFile(file, callback, worker) {
-		if (worker && self.FileReaderSync) {
+	/**
+	 * Perform file read using method based on worker environment.
+	 *
+	 * @param {File} file
+	 * @param {Function} callback
+	 * @param {Boolean} asWorker
+	 * @return void
+	 */
+	var readFile = function(file, callback, asWorker) {
+		if (asWorker && self.FileReaderSync) {
 			var reader = new FileReaderSync,
 				result, error;
 			try {
@@ -692,7 +847,6 @@ var JPEGReader = (function() {
 			};
 			reader.readAsBinaryString(file);
 		}
-		return true;
 	};
 
 	// Setup for running inside Worker.
@@ -704,6 +858,8 @@ var JPEGReader = (function() {
 		}, false);
 	}
 
-	return JPEGReader;
-
-})();
+	return {
+		ExifReader : ExifReader,
+		JpegReader : JpegReader
+	};
+});

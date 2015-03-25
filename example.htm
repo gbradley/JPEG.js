@@ -1,54 +1,30 @@
 <!DOCTYPE html>
 <html>
 <head>
-	<title>exif-reader.js</title>
+	<title>JPEG.js</title>
 	<meta charset="utf8" />
 </head>
 <body>
 
 <input type="file" id="file" />
+
+<ul>
+	<li><img id='preview' /></li>
+	<li>
+		<h2>EXIF</h2>
+		<dl id='exif'></dl>
+	</li>
+	<li>
+		<h2>IPTC</h2>
+		<dl id='iptc'></dl>
+	</li>
+	<li>
+		<h2>GPS</h2>
+		<dl id='gps'></dl>
+	</li>
+</ul>
 <img id="img" />
 
-<script src='src/JPEGReader.js'></script>
-<script>
-
-/*document.getElementById('file').onchange = function() {
-
-	var reader = new ExifReader();
-	reader.onload = function() {
-		console.log(this.thumbnail.width, this.thumbnail.height);
-		document.getElementById('img').src = this.thumbnail.src;
-	};
-	reader.readFromFile(this.files[0]);
-
-};*/
-
-//'data:image/jpeg;base64,'
-
-document.getElementById('file').onchange = function() {
-
-		var reader = new JPEGReader({
-			workerUrl: 'src/JPEGReader.js'
-		});
-		reader.onload = function() {
-			console.log(reader.metadata.gps);
-			reader.loadPreview();
-		};
-
-		reader.onerror = function(e) {
-			console.log(e);
-		};
-
-		reader.onloadpreview = function(e) {
-			document.getElementById('img').src = reader.preview;
-		};
-
-		reader.load(this.files[0]);
-
-
-};
-
-
-</script>
+<script data-main="src/example.js" src="src/require.js"></script>
 </body>
 </html>

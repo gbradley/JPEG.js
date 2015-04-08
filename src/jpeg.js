@@ -763,7 +763,7 @@ define([], function() {
 						}
 					};
 
-					if (window.WorkerX && this.config.workerUrl) {
+					if (window.Worker && this.config.workerUrl) {
 						var worker = new Worker(this.config.workerUrl);
 						worker.addEventListener('message', function(e) {
 							onloadend(e.data);

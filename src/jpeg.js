@@ -1,3 +1,11 @@
+/**
+* jpeg.js - A RequireJS module to extract JPEG metadata.
+*
+* 
+* Graham Bradley
+* https://github.com/gbradley/jpeg.js
+**/
+
 // Rather than jumping through hoops getting Require inside a worker, just mock it.
 if (typeof define === 'undefined') {
 	var define = function(dependencies, callback) {
@@ -267,6 +275,9 @@ define([], function() {
 			throw new Error(ExifReader.Errors[1]);
 		}
 
+		// Attempt to find the SOF marker.
+		sof(metadata, buffer);
+
 		var block = [],
 			blockLength,
 			appx,
@@ -276,7 +287,7 @@ define([], function() {
 		for (var i = 0 ; i < 4 ; i++) {
 			block[i] = buffer.nextByte();
 		}
-			
+
 		while (block[0] == 0xFF && block[1] >= 0xE0 && block[1] <= 0xFE) {
 		
 			// determine the length of the current APP block
@@ -300,6 +311,42 @@ define([], function() {
 			}
 		}
 	};
+
+	/**
+	 * Extract ImageWidth and ImageHeight by finding the SOF marker.
+	 *
+	 * @param {Object} metadata
+	 * @param {Buffer} buffer
+	 * @return void
+	 */
+	function sof(metadata, buffer) {
+		var size = buffer.length(),
+			marker, offset, length, advanced;
+
+		while (buffer.index < size - 1) {
+
+			while (buffer.nextByte() != 0xFF);
+			marker = buffer.nextByte();
+
+			do {
+				offset = buffer.nextByte();
+			} while (offset == 0xFF);
+
+			length = buffer.nextByte();
+			advanced = buffer.index + (length + 256 * offset) - 2;
+
+			// check for SOF markers (note that 0xC4 points to huffman table, 0cC8 reserved etc; see http://www.xbdev.net/image_formats/jpeg/tut_jpg/jpeg_file_layout.php)
+			if ([0xC0, 0xC1, 0xC2, 0xC3, 0xC5, 0xC6, 0xC7, 0xC9, 0xCA, 0xCB, 0xCD, 0xCE, 0xCF].indexOf(marker) !== -1) {
+				var sof = buffer.slice(buffer.index, advanced);
+				metadata.exif.ImageHeight = sof.getShortAt(1);
+				metadata.exif.ImageWidth = sof.getShortAt(3);
+				break;
+			}
+			buffer.index = advanced;
+		}
+
+		buffer.index = 0;
+	}
 
 	/**
 	 * Extract tags from an APP1 block.
@@ -716,7 +763,7 @@ define([], function() {
 						}
 					};
 
-					if (window.Worker && this.config.workerUrl) {
+					if (window.WorkerX && this.config.workerUrl) {
 						var worker = new Worker(this.config.workerUrl);
 						worker.addEventListener('message', function(e) {
 							onloadend(e.data);
